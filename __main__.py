@@ -3,35 +3,40 @@
 
 # %%
 
-from songDisplay.waveshare_epd import epd2in7b
+
 from PIL import Image,ImageDraw,ImageFont
 #from matplotlib.pyplot import imshow
 import sys, os
 #import numpy as np
 import time
 
+#from songDisplay.waveshare_epd import epd2in7b
+#epd = epd2in7b.EPD()  # get the display
+# epd.init()  # initialize the display
+# epd.Clear()
+# height = epd2in7b.EPD_HEIGHT
+# width = epd2in7b.EPD_WIDTH
 
-
-
-epd = epd2in7b.EPD()  # get the display
-epd.init()  # initialize the display
-epd.Clear()
-height = epd2in7b.EPD_HEIGHT
-width = epd2in7b.EPD_WIDTH
-
-
+from rpi_epd2in7.epd import EPD
+epd = EPD()
+epd.init()
+height, width = epd.width, epd.height
 def newFrame():
-    return Image.new('1', (height, width), 255)
+    return Image.new('1', (width,height), 255)
 
 def drawFrame(frame):
-    HRedImage = newFrame()
-    # epd.display(epd.getbuffer(frame), epd.getbuffer(HRedImage))
-    epd.displayMono(epd.getbuffer(frame))
+    #HRedImage = newFrame()
+    ## epd.display(epd.getbuffer(frame), epd.getbuffer(HRedImage))
+    # epd.displayMono(epd.getbuffer(frame))
+
+    epd.smart_update(frame.transpose(Image.ROTATE_90))
+
+    ### plot with matplotlib
     #imshow(np.asarray(frame))
 
 
 def lineHeight(number):
-    return (5 + number * height / 6.0)
+    return (5 + number * width / 6.0)
 
 
 def printToDisplay(playlistName, artistName, titleName):
