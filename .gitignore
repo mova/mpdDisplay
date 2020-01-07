@@ -1,4 +1,7 @@
-# Byte-compiled / optimized / DLL files
+#y Byte-compiled / optimized / DLL files
+.vscode/
+waveshare_epd/
+
 __pycache__/
 *.py[cod]
 *$py.class
