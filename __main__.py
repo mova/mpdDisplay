@@ -88,6 +88,7 @@ class player():
         self.curplidx = 0
         self.lastinfo = {"pl": "xxx", "artist": "xxx", "title": "xxx"}
         self.nextPlayList()
+        self.playpause()
 
     def __del__(self):
         self.client.close()
@@ -102,12 +103,12 @@ class player():
         self.client.shuffle()
         self.client.play(0)
 
-        self.updateDisplay()
+        # self.updateDisplay()
 
 
     def nextSong(self):
         self.client.next()
-        self.updateDisplay()
+        # self.updateDisplay()
 
 
     def playpause(self):
@@ -175,5 +176,5 @@ state=playerState(p)
 
 # %%
 while True:
-    time.sleep(2)
+    time.sleep(1)
     p.updateDisplay()
