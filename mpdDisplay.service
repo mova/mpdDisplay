@@ -9,7 +9,7 @@ Environment=PYTHONUSERBASE=/home/pi/.local/pylibs-RaspbianGNU/Linux10
 WorkingDirectory=/home/pi
 ExecStartPre=python3 /home/pi/mpdDisplay/foldersToMPDPlaylists.py
 ExecStart=python3 -m mpdDisplay -i
-;Restart=on-failure
+Restart=on-failure
 ;SuccessExitStatus=3 4
 ;RestartForceExitStatus=3 4
 
