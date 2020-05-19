@@ -1,23 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-
-# %%
-
 from PIL import Image, ImageDraw, ImageFont
-
-# from matplotlib.pyplot import imshow
 import sys, os
-
-# import numpy as np
 import time
-
-# from songDisplay.waveshare_epd import epd2in7b
-# epd = epd2in7b.EPD()  # get the display
-# epd.init()  # initialize the display
-# epd.Clear()
-# height = epd2in7b.EPD_HEIGHT
-# width = epd2in7b.EPD_WIDTH
-
 from rpi_epd2in7.epd import EPD
 
 epd = EPD()
@@ -29,14 +14,14 @@ def newFrame():
     return Image.new("1", (width, height), 255)
 
 
-def drawFrame(frame):
-    # HRedImage = newFrame()
-    ## epd.display(epd.getbuffer(frame), epd.getbuffer(HRedImage))
-    # epd.displayMono(epd.getbuffer(frame))
-
-    epd.smart_update(frame.transpose(Image.ROTATE_90))
-
-    ### plot with matplotlib
+def drawFrame(frame, full_refresh):
+    if full_refresh:
+        epd.display_frame(frame.transpose(Image.ROTATE_90))
+    else:
+        epd.smart_update(frame.transpose(Image.ROTATE_90))
+    # ### for debugging
+    # from matplotlib.pyplot import imshow
+    # import numpy as np
     # imshow(np.asarray(frame))
 
 
@@ -44,39 +29,49 @@ def lineHeight(number):
     return 5 + number * width / 6.0
 
 
-def printToDisplay(playlistName, artistName, titleName):
+def printToDisplay(state, kwdict, full_refresh):
     HBlackImage = newFrame()
     draw = ImageDraw.Draw(
         HBlackImage
     )  # Create draw object and pass in the image layer we want to work with (HBlackImage)
     font = ImageFont.truetype("/usr/share/fonts/truetype/ubuntu/UbuntuMono-B.ttf", 20)
     symfont = ImageFont.truetype(os.path.expanduser("~/.fonts/fa-solid-900.ttf"), 20)
-
-    for i, sym in enumerate([u"\uf0ca", u"\uf028", u"\uf04b", u"\uf04e"]):
-        draw.text((5, lineHeight(i)), sym, font=symfont, fill=0)
-    draw.text((37, lineHeight(0)), playlistName, font=font, fill=0)
-    draw.text((37, lineHeight(1)), "========", font=font, fill=0)
-    draw.text((37, lineHeight(2)), artistName, font=font, fill=0)
-    draw.text((37, lineHeight(3)), titleName, font=font, fill=0)
-    drawFrame(HBlackImage)
-
-
-def updateDisplay():
-    self.client.connect("localhost", 6600)
-    songinfo = self.client.currentsong()
-    self.client.close()
-    self.client.disconnect()
-    if (curplaylist, songinfo["artist"], songinfo["title"]) != (
-        self.lastinfo["pl"],
-        self.lastinfo["artist"],
-        self.lastinfo["title"],
-    ):
-        printToDisplay(curplaylist, songinfo["artist"], songinfo["title"])
-        (self.lastinfo["pl"], self.lastinfo["artist"], self.lastinfo["title"]) = (
-            curplaylist,
-            songinfo["artist"],
-            songinfo["title"],
+    print("Updating display")
+    if state == 0:
+        for i, sym in enumerate([u"\uf0ca", u"\uf028", u"\uf04b", u"\uf04e"]):
+            draw.text((5, lineHeight(i)), sym, font=symfont, fill=0)
+        draw.text((37, lineHeight(0)), kwdict["pl"], font=font, fill=0)
+        draw.text(
+            (37, lineHeight(1)),
+            "=" * int(kwdict["volume"] / 100 * 20) + " " + str(kwdict["volume"]),
+            font=font,
+            fill=0,
         )
+        draw.text((37, lineHeight(2)), kwdict["artist"], font=font, fill=0)
+        draw.text((37, lineHeight(3)), kwdict["title"], font=font, fill=0)
+    if state == 1:
+        idx = kwdict["index"]
+        plL = kwdict["playlists"]
+        for i, sym in enumerate([u"\uf0ca", u"\uf077", u"\uf078", u"\uf078"]):
+            draw.text((5, lineHeight(i)), sym, font=symfont, fill=0)
+        for row, offset in enumerate([0, -1, 1, 2]):
+            draw.text(
+                (37, lineHeight(row)),
+                str(idx + offset) + ": " + plL[(idx + offset) % len(plL)],
+                font=font,
+                fill=0,
+            )
+    if state == 2:
+        for i, sym in enumerate([u"\uf0ca", u"\uf028", u"\uf027", u"\uf1f8"]):
+            draw.text((5, lineHeight(i)), sym, font=symfont, fill=0)
+        draw.text(
+            (37, lineHeight(1.5)),
+            "=" * int(kwdict["volume"] / 100 * 20) + " " + str(kwdict["volume"]),
+            font=font,
+            fill=0,
+        )
+        draw.text((37, lineHeight(3)), "Delete", font=font, fill=0)
+    drawFrame(HBlackImage, full_refresh)
 
 
 # %%
@@ -92,17 +87,15 @@ class player:
         self.client.connect("localhost", 6600)
         self.client.update()
 
-        self.playlists = [x["playlist"] for x in self.client.listplaylists()]
-        # self.curplidx = 0
-        self.playPL(self.playlists[0])
-        self.lastinfo = {"pl": "xxx", "artist": "xxx", "title": "xxx"}
-        #
-        self.state = 0
         # 0 Display Song
         # 1 Select Playlist
         # 2 Volume
-        # start the player
-        self.playpause()
+        self.state = 0
+        self.lastinfo = (self.state, {})
+
+        self.playlists = [x["playlist"] for x in self.client.listplaylists()]
+
+        self.playPL(self.playlists[0])
 
     def __del__(self):
         self.client.close()
@@ -122,38 +115,51 @@ class player:
 
     def nextSong(self):
         self.client.next()
-        # self.updateDisplay()
 
     def playpause(self):
         self.client.pause()
 
     def updateDisplay(self):
-        songinfo = self.client.currentsong()
-        if (self.playlists[self.curplidx], songinfo["artist"], songinfo["title"]) != (
-            self.lastinfo["pl"],
-            self.lastinfo["artist"],
-            self.lastinfo["title"],
-        ):
-            print(songinfo)
-            printToDisplay(
-                self.playlists[self.curplidx], songinfo["artist"], songinfo["title"]
+        if self.state == 0:
+            songinfo = self.client.currentsong()
+            curinfo = (
+                self.state,
+                {
+                    "pl": self.playlists[self.curplidx],
+                    "artist": songinfo.get(
+                        "artist", songinfo.get("albumartist", "Unknown")
+                    ),
+                    "title": songinfo["title"],
+                    "volume": int(self.client.status()["volume"]),
+                },
             )
-            (self.lastinfo["pl"], self.lastinfo["artist"], self.lastinfo["title"]) = (
-                self.playlists[self.curplidx],
-                songinfo["artist"],
-                songinfo["title"],
+        if self.state == 1:
+            curinfo = (
+                self.state,
+                {"playlists": self.playlists, "index": self.curplidx},
             )
+        if self.state == 2:
+            curinfo = (
+                self.state,
+                {"volume": int(self.client.status()["volume"])},
+            )
+
+        if self.lastinfo != curinfo:
+            if self.lastinfo[0] == curinfo[0]:
+                printToDisplay(*curinfo, False)
+            else:
+                printToDisplay(*curinfo, True)
+            self.lastinfo = curinfo
+            print(curinfo)
 
     def incVol(self):
         status = self.client.status()
-        print(status)
         curvol = int(status["volume"])
         print("Current vol {}", format(curvol))
         self.client.setvol(curvol + 5)
 
     def decVol(self):
         status = self.client.status()
-        print(status)
         curvol = int(status["volume"])
         print("Current vol {}", format(curvol))
         self.client.setvol(curvol - 5)
@@ -173,29 +179,47 @@ class playerState(object):
         self.b2.when_pressed = self.b2action
         self.b3.when_pressed = self.b3action
         self.b4.when_pressed = self.b4action
-        self.state = True
 
     def b1action(self):
-        print("button1Action")
-        self.p.nextPlayList()
+        self.p.state = (self.p.state + 1) % 3
+        print("button1Action" + " State: " + str(self.p.state))
 
     def b2action(self):
-        print("button2Action")
-        self.state = not self.state
-
-    def b3action(self):
-        print("button3Action")
-        if self.state:
-            self.p.playpause()
-        else:
+        print("button2Action" + " State: " + str(self.p.state))
+        if self.p.state == 0:
+            pass
+        if self.p.state == 1:
+            self.p.playPL(
+                self.p.playlists[(self.p.curplidx - 1) % len(self.p.playlists)]
+            )
+        if self.p.state == 2:
             self.p.incVol()
 
-    def b4action(self):
-        print("button4Action")
-        if self.state:
-            self.p.nextSong()
-        else:
+    def b3action(self):
+        print("button3Action" + " State: " + str(self.p.state))
+        if self.p.state == 0:
+            self.p.playpause()
+        if self.p.state == 1:
+            self.p.playPL(
+                self.p.playlists[(self.p.curplidx + 1) % len(self.p.playlists)]
+            )
+        if self.p.state == 2:
             self.p.decVol()
+
+    def b4action(self):
+        print("button4Action" + " State: " + str(self.p.state))
+        if self.p.state == 0:
+            self.p.nextSong()
+        if self.p.state == 1:
+            self.p.playPL(
+                self.p.playlists[(self.p.curplidx + 2) % len(self.p.playlists)]
+            )
+        if self.p.state == 2:
+            songinfo = self.p.client.currentsong()
+            self.p.client.deleteid(songinfo["id"])
+            print("Removing /home/pi/Music/" + songinfo["file"])
+            os.remove("/home/pi/Music/" + songinfo["file"])
+            self.p.nextSong()
 
 
 # %%
